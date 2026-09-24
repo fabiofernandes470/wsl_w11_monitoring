@@ -89,10 +89,26 @@ services:
     networks:
       - monitoring
 
+  portainer:
+    image: portainer/portainer-ce:lts
+    container_name: event-monitor-portainer
+    command: -H unix:///var/run/docker.sock
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORTAINER_HTTPS_PORT:-9443}:9443"
+    restart: unless-stopped
+    networks:
+      - monitoring
+
 volumes:
   postgres_data:
   uptime_kuma_data:
   ntfy_cache:
+  portainer_data:
 
 networks:
   monitoring:
