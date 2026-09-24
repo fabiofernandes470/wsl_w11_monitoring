@@ -100,6 +100,7 @@ Acessos no notebook:
   Uptime Kuma http://localhost:3001
   ntfy        http://localhost:8085
   tópico ntfy http://localhost:8085/event-monitor
+  Portainer   https://localhost:9443
 
 Zabbix inicial:
   usuário: Admin
