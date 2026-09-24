@@ -6,4 +6,4 @@ TITLE="${2:-Zabbix}"
 MESSAGE="${3:-Evento do Zabbix}"
 PRIORITY="${4:-default}"
 
-curl -fsS   -H "Title: $TITLE"   -H "Priority: $PRIORITY"   --data-binary "$MESSAGE"   "http://ntfy/$TOPIC"
+wget -qO-   --header="Title: $TITLE"   --header="Priority: $PRIORITY"   --post-data="$MESSAGE"   "http://ntfy/$TOPIC"
