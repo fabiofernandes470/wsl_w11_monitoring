@@ -20,6 +20,7 @@ Stack portátil para transformar um notebook de evento em um pequeno NOC usando 
 | PostgreSQL 16 | Banco do Zabbix |
 | Uptime Kuma 2 | Painel operacional simples e testes Ping/HTTP/TCP |
 | ntfy | Notificações no notebook |
+| Portainer CE | Gestão visual dos containers, logs, volumes e stack |
 | Docker Desktop | Engine Docker compartilhado com o Ubuntu via WSL2 |
 | Docker Compose | Sobe e mantém a stack |
 
@@ -85,6 +86,7 @@ Depois de subir:
 | Uptime Kuma | http://localhost:3001 |
 | ntfy | http://localhost:8085 |
 | tópico de alertas | http://localhost:8085/event-monitor |
+| Portainer | https://localhost:9443 |
 
 ### Primeiro acesso Zabbix
 
@@ -98,6 +100,12 @@ Troque a senha no primeiro acesso.
 ### Primeiro acesso Uptime Kuma
 
 No primeiro acesso, crie o usuário administrador solicitado pelo Kuma.
+
+### Primeiro acesso Portainer
+
+Abra `https://localhost:9443`. O navegador pode alertar sobre o certificado HTTPS local; confirme a exceção apenas neste notebook. Crie o usuário administrador e selecione o ambiente Docker local.
+
+> O Portainer monta `/var/run/docker.sock`, o que lhe dá alto privilégio sobre o engine Docker. Por isso a porta fica vinculada a `127.0.0.1` por padrão.
 
 ## Teste rápido
 
