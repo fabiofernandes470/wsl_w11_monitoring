@@ -31,7 +31,35 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y   ca-certificates curl gi
 
 command -v docker >/dev/null 2>&1 || die "Comando docker não encontrado no Ubuntu. No Docker Desktop, habilite Settings > Resources > WSL Integration para esta distribuição."
 
-docker version >/dev/null 2>&1 || die "Docker Desktop não está acessível pelo WSL. Inicie o Docker Desktop e habilite a integração WSL para o Ubuntu."
+if ! docker version >/dev/null 2>&1; then
+  if sudo docker version >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+
+[ERRO] Docker Desktop está acessível, mas somente via sudo.
+
+Isso indica permissão do usuário no socket Docker, não falha da integração WSL.
+
+Corrija uma vez com:
+
+  sudo groupadd docker 2>/dev/null || true
+  sudo usermod -aG docker "$USER"
+  newgrp docker
+
+Depois confirme:
+
+  docker version
+  docker compose version
+
+e execute novamente:
+
+  ./install.sh
+
+EOF
+    exit 1
+  fi
+
+  die "Docker Desktop não está acessível pelo WSL. Inicie o Docker Desktop e confira Settings > Resources > WSL Integration > Ubuntu."
+fi
 
 docker compose version >/dev/null 2>&1 || die "Docker Compose v2 não está disponível via Docker Desktop."
 
