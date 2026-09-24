@@ -19,4 +19,5 @@ Painéis:
   Zabbix      http://localhost:8080
   Uptime Kuma http://localhost:3001
   ntfy        http://localhost:8085/event-monitor
+  Portainer   https://localhost:9443
 EOF
