@@ -1,0 +1,7 @@
+.env
+*.log
+*.pid
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
