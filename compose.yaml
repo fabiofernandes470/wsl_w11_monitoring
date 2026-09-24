@@ -1,0 +1,99 @@
+name: wsl-w11-monitoring
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: event-monitor-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-zabbix}
+      POSTGRES_USER: ${POSTGRES_USER:-zabbix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zabbix} -d ${POSTGRES_DB:-zabbix}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-7.4-latest
+    container_name: event-monitor-zabbix-server
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-zabbix}
+      POSTGRES_USER: ${POSTGRES_USER:-zabbix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      ZBX_STARTPINGERS: ${ZBX_STARTPINGERS:-5}
+      ZBX_STARTPOLLERS: ${ZBX_STARTPOLLERS:-10}
+      ZBX_TIMEOUT: ${ZBX_TIMEOUT:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./zabbix/alertscripts:/usr/lib/zabbix/alertscripts:ro
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${ZABBIX_SERVER_PORT:-10051}:10051"
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.4-latest
+    container_name: event-monitor-zabbix-web
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+      DB_SERVER_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-zabbix}
+      POSTGRES_USER: ${POSTGRES_USER:-zabbix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      PHP_TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zabbix-server:
+        condition: service_started
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${ZABBIX_WEB_PORT:-8080}:8080"
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: event-monitor-uptime-kuma
+    volumes:
+      - uptime_kuma_data:/app/data
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${UPTIME_KUMA_PORT:-3001}:3001"
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: event-monitor-ntfy
+    command: serve
+    environment:
+      TZ: ${TZ:-America/Sao_Paulo}
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${NTFY_PORT:-8085}:80"
+    restart: unless-stopped
+    init: true
+    networks:
+      - monitoring
+
+volumes:
+  postgres_data:
+  uptime_kuma_data:
+  ntfy_cache:
+
+networks:
+  monitoring:
+    driver: bridge
