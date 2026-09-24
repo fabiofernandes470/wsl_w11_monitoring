@@ -1,48 +1,57 @@
 # WSL W11 Monitoring
 
-Stack portátil de monitoramento para notebook de evento usando **Windows 11 + WSL2 Ubuntu + Docker**.
+Stack portátil para transformar um notebook de evento em um pequeno NOC usando **Windows 11 + WSL2 Ubuntu + Docker Desktop**.
 
-O objetivo é subir rapidamente um pequeno NOC local para acompanhar:
+## O que monitora
 
-- disponibilidade por **ICMP**;
-- equipamentos por **SNMP**;
-- tráfego/consumo das interfaces de **MikroTik**;
-- estado de gateways, switches, APs e serviços;
-- alertas via **ntfy**;
-- painel simples de disponibilidade com **Uptime Kuma**;
-- histórico e métricas detalhadas com **Zabbix**.
+- disponibilidade via **ICMP**;
+- equipamentos via **SNMP**;
+- tráfego RX/TX e utilização de interfaces de **MikroTik**;
+- gateways, switches, APs e serviços;
+- alertas locais via **ntfy**;
+- disponibilidade simples via **Uptime Kuma**;
+- histórico, descoberta e métricas detalhadas via **Zabbix**.
 
 ## Arquitetura
 
-| Componente | Papel |
+| Componente | Função |
 |---|---|
-| Zabbix 7.4 | SNMP, ICMP, descoberta de interfaces, histórico e gráficos |
+| Zabbix 7.4 | SNMP, ICMP, descoberta de interfaces, histórico, gráficos e triggers |
 | PostgreSQL 16 | Banco do Zabbix |
-| Uptime Kuma 2 | Painel simples de disponibilidade e testes ICMP/HTTP/TCP |
-| ntfy | Barramento local de notificações |
-| Docker Compose | Execução da stack dentro do Ubuntu/WSL2 |
+| Uptime Kuma 2 | Painel operacional simples e testes Ping/HTTP/TCP |
+| ntfy | Notificações no notebook |
+| Docker Desktop | Engine Docker compartilhado com o Ubuntu via WSL2 |
+| Docker Compose | Sobe e mantém a stack |
 
-A divisão é intencional: o Uptime Kuma fica simples para o operador do evento, enquanto o Zabbix concentra SNMP, métricas e análise de tráfego.
+**Decisão de arquitetura:** o Kuma não tenta substituir o Zabbix. Kuma mostra rapidamente "está vivo ou caiu"; Zabbix responde "quanto está passando no link, qual interface está saturando e o que mudou".
 
-## Requisitos
+## Pré-requisitos
+
+Este repositório assume que você **já possui**:
 
 - Windows 11;
 - WSL2 com Ubuntu;
-- acesso de rede do WSL aos equipamentos monitorados;
-- internet na primeira instalação para baixar pacotes e imagens Docker.
+- Docker Desktop;
+- integração do Docker Desktop habilitada para o Ubuntu.
 
-Se o Ubuntu ainda não estiver instalado, abra **PowerShell como Administrador**:
+No Ubuntu, confirme:
 
-```powershell
-wsl --install -d Ubuntu
-wsl --set-default-version 2
+```bash
+docker version
+docker compose version
 ```
 
-Depois abra o Ubuntu.
+Se `docker` não estiver disponível, abra Docker Desktop:
 
-## Instalação rápida
+**Settings > Resources > WSL Integration > Ubuntu**
 
-Dentro do Ubuntu/WSL:
+e habilite a distribuição.
+
+> Não instale um segundo Docker Engine dentro do Ubuntu/WSL. O projeto usa o engine do Docker Desktop.
+
+## Instalação
+
+No Ubuntu/WSL:
 
 ```bash
 sudo apt update
@@ -51,132 +60,132 @@ sudo apt install -y git
 git clone https://github.com/fabiofernandes470/wsl_w11_monitoring.git
 cd wsl_w11_monitoring
 
-chmod +x install.sh scripts/*.sh
+chmod +x install.sh
 ./install.sh
 ```
 
-O instalador:
+O instalador apenas:
 
-1. instala dependências;
-2. instala Docker Engine e Docker Compose Plugin se necessário;
-3. cria o arquivo `.env`;
-4. gera uma senha aleatória para o PostgreSQL;
-5. inicia a stack;
-6. mostra os endereços dos serviços.
+1. instala utilitários Linux de rede/SNMP;
+2. valida Docker Desktop e Docker Compose;
+3. cria `.env`;
+4. gera senha aleatória do PostgreSQL;
+5. baixa as imagens;
+6. sobe a stack.
 
-## Interfaces locais
+Ele **não instala nem altera o Docker Desktop**.
+
+## Endereços
 
 Depois de subir:
 
-- **Zabbix:** http://localhost:8080
-- **Uptime Kuma:** http://localhost:3001
-- **ntfy:** http://localhost:8085
-- **tópico padrão ntfy:** http://localhost:8085/event-monitor
+| Serviço | URL |
+|---|---|
+| Zabbix | http://localhost:8080 |
+| Uptime Kuma | http://localhost:3001 |
+| ntfy | http://localhost:8085 |
+| tópico de alertas | http://localhost:8085/event-monitor |
 
 ### Primeiro acesso Zabbix
 
-Usuário padrão:
-
 ```text
-Admin
+Usuário: Admin
+Senha:   zabbix
 ```
 
-Senha padrão:
+Troque a senha no primeiro acesso.
 
-```text
-zabbix
-```
+### Primeiro acesso Uptime Kuma
 
-Troque essa senha no primeiro acesso.
+No primeiro acesso, crie o usuário administrador solicitado pelo Kuma.
 
-O primeiro bootstrap do banco pode levar alguns minutos. Confira com:
+## Teste rápido
+
+Estado dos containers:
 
 ```bash
 docker compose ps
-docker compose logs -f zabbix-server
 ```
 
-## MikroTik — configuração mínima
+Teste do ntfy:
 
-Para um evento pequeno, SNMPv2c é simples e suficiente **desde que a community seja restrita ao IP/rede do monitoramento**. Para redes menos controladas, prefira SNMPv3.
+```bash
+./scripts/test-notification.sh
+```
 
-No RouterOS:
+Teste de um MikroTik:
+
+```bash
+./scripts/test-device.sh 192.168.88.1 event-monitor
+```
+
+## MikroTik
+
+Exemplo mínimo de SNMPv2c:
 
 ```routeros
 /snmp set enabled=yes
 /snmp community add name=event-monitor address=SEU_IP_OU_REDE read-access=yes write-access=no security=none
 ```
 
-Não use `0.0.0.0/0` em produção/evento.
+Restrinja `address` à máquina/rede de gerenciamento. Não exponha uma community SNMPv2c para `0.0.0.0/0`.
 
-Teste do WSL:
+Documentação completa:
 
-```bash
-./scripts/test-device.sh 192.168.88.1 event-monitor
-```
+- [MikroTik + SNMP](docs/mikrotik.md)
 
-Mais detalhes em [docs/mikrotik.md](docs/mikrotik.md).
+## Consumo de link no MikroTik
 
-## Adicionando o MikroTik no Zabbix
+No Zabbix:
 
-1. Acesse **Data collection > Hosts**.
-2. Crie um host.
-3. Adicione uma interface **SNMP** apontando para o IP do MikroTik.
-4. Use SNMPv2 e informe a community criada.
-5. Vincule o template oficial **MikroTik by SNMP** ou o template específico do modelo quando disponível.
-6. Aguarde a descoberta automática das interfaces.
-7. Abra **Monitoring > Hosts > Latest data** para verificar RX/TX e utilização.
+1. **Data collection > Hosts > Create host**;
+2. adicione a interface **SNMP** com IP do MikroTik;
+3. configure SNMPv2 e a community;
+4. vincule **MikroTik by SNMP** ou o template oficial adequado;
+5. aguarde a descoberta das interfaces;
+6. em **Monitoring > Latest data**, filtre pela WAN;
+7. acompanhe RX/TX e utilização;
+8. crie um dashboard para as interfaces de internet.
 
-Os templates oficiais do Zabbix 7.4 incluem descoberta de interfaces e métricas via IF-MIB/MIKROTIK-MIB.
+Para eventos com dois links, mantenha gráficos separados para WAN1 e WAN2.
 
 ## Uptime Kuma
 
-Use o Kuma para o painel operacional simples:
+Sugestão de monitores:
 
-- MikroTik principal: Ping;
-- gateway da operadora: Ping;
-- switches críticos: Ping;
-- AP/controlador: Ping ou HTTP;
-- internet: HTTP/HTTPS para um endpoint externo;
-- serviços locais: HTTP/TCP.
+- MikroTik principal — Ping;
+- gateway da operadora — Ping;
+- switches críticos — Ping;
+- controlador/AP — Ping ou HTTP;
+- serviço de internet — HTTP/HTTPS;
+- sistemas locais relevantes — HTTP/TCP.
 
-Configure notificações do Kuma apontando para o ntfy local:
-
-```text
-http://ntfy:80
-```
-
-Tópico sugerido:
+Para ntfy dentro da stack:
 
 ```text
-event-monitor
+Servidor: http://ntfy
+Tópico:   event-monitor
 ```
 
-Dentro da rede Docker, o hostname do serviço é `ntfy`. No navegador do Windows, use `localhost:8085`.
+Assim, quando um monitor cair, o alerta pode aparecer no notebook.
 
-## Testar notificação
+## Zabbix -> ntfy
 
-```bash
-./scripts/test-notification.sh
-```
+A stack inclui um alert script para que triggers do Zabbix também possam publicar no ntfy.
 
-Ou:
+Veja:
 
-```bash
-curl -d "Teste do monitoramento do evento" http://localhost:8085/event-monitor
-```
+- [Configurar Zabbix -> ntfy](docs/zabbix-ntfy.md)
 
-Abra o tópico no navegador e permita notificações.
+## Operação durante o evento
 
-## Operação no evento
-
-Antes de iniciar:
+Subir/verificar:
 
 ```bash
 ./scripts/event-start.sh
 ```
 
-Ver estado:
+Estado:
 
 ```bash
 docker compose ps
@@ -194,47 +203,76 @@ Parar:
 docker compose down
 ```
 
-Atualizar imagens:
+Os dados persistem em volumes Docker.
+
+## Atualização
 
 ```bash
+git pull
 docker compose pull
 docker compose up -d
 ```
 
-Os volumes persistentes preservam banco, dashboards e configurações.
-
 ## Segurança
 
-Por padrão, as interfaces web ficam vinculadas a `127.0.0.1`, portanto acessíveis somente no próprio notebook.
+As interfaces web vêm vinculadas a:
 
-Para disponibilizar os painéis na LAN, altere no `.env`:
+```text
+127.0.0.1
+```
+
+Portanto, por padrão, somente o próprio notebook acessa os painéis.
+
+Se outro computador da equipe precisar acessar, altere no `.env`:
 
 ```env
 BIND_ADDRESS=0.0.0.0
 ```
 
-e execute:
+e rode:
 
 ```bash
 docker compose up -d
 ```
 
-Só faça isso em uma rede confiável e troque as credenciais padrão antes.
+Faça isso somente em uma LAN confiável e depois de trocar credenciais padrão.
 
-## WSL e acesso à LAN
+O arquivo `.env` não entra no Git.
 
-O WSL2 normalmente consegue iniciar conexões para equipamentos da LAN. Teste antes do evento:
+## Diagnóstico
 
 ```bash
+docker version
+docker compose version
+docker compose ps
 ping -c 3 IP_DO_MIKROTIK
 snmpget -v2c -c COMMUNITY IP_DO_MIKROTIK 1.3.6.1.2.1.1.5.0
 ```
 
-Se o Windows/WSL não alcançar os dispositivos, consulte [docs/troubleshooting.md](docs/troubleshooting.md).
+Problemas comuns:
 
-## Referências
+- [Troubleshooting](docs/troubleshooting.md)
 
-- Zabbix 7.4: documentação oficial de instalação em containers e templates de rede.
-- MikroTik RouterOS: documentação oficial SNMP.
-- Uptime Kuma: imagem Docker série 2.
-- ntfy: documentação oficial Docker/self-hosting.
+## Estrutura
+
+```text
+.
+├── compose.yaml
+├── install.sh
+├── .env.example
+├── scripts/
+│   ├── event-start.sh
+│   ├── test-device.sh
+│   └── test-notification.sh
+├── zabbix/
+│   └── alertscripts/
+│       └── ntfy.sh
+└── docs/
+    ├── mikrotik.md
+    ├── zabbix-ntfy.md
+    └── troubleshooting.md
+```
+
+## Licença
+
+MIT.
